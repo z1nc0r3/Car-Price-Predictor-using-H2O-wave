@@ -13,14 +13,8 @@ async def serve(q: Q):
         await init(q)
         q.client.initialized = True
 
-    """ try:
-        make, model, year, mileage, condition = get_form_data()
-    except Exception as e:
-        # Handle the exception here
-        print(f"An error occurred: {str(e)}") """
-
     await home(q)
-    # When the user clicks the predict button
+
     if q.args.predict:
         await predict_button_click(q)
 
@@ -57,6 +51,11 @@ async def init(q: Q) -> None:
                         "content",
                         size="1",
                         zones=[
+                            ui.zone(
+                                "model_importer",
+                                direction=ui.ZoneDirection.COLUMN,
+                                size="1",
+                            ),
                             ui.zone(
                                 "top_horizontal",
                                 direction=ui.ZoneDirection.ROW,
@@ -103,7 +102,38 @@ async def init(q: Q) -> None:
 
 @on()
 async def home(q: Q) -> None:
-    # clear_cards(q)
+    if "file_upload" in q.args:
+        add_card(
+            q,
+            "model_importer",
+            ui.form_card(
+                box="model_importer",
+                items=[
+                    ui.text(f"file_upload={q.args.file_upload}"),
+                    ui.button(name="show_upload", label="Back", primary=True),
+                ],
+            ),
+        )
+    else:
+        add_card(
+            q,
+            "model_importer",
+            ui.form_card(
+                box="model_importer",
+                items=[
+                    ui.file_upload(
+                        name="file_upload",
+                        label="Select one or more files to upload",
+                        compact=True,
+                        multiple=False,
+                        file_extensions=["csv"],
+                        max_file_size=1,
+                        max_size=15,
+                    ),
+                    ui.button(name="submit", label="Submit", primary=True),
+                ],
+            ),
+        )
 
     add_card(
         q,
@@ -234,7 +264,6 @@ async def home(q: Q) -> None:
 
 
 async def predict_button_click(q: Q):
-    # Extract values from form elements (or other data sources)
     try:
         make = q.args.make
         model = q.args.model
@@ -261,10 +290,8 @@ async def predict_button_click(q: Q):
 async def update_predicted_price(
     q: Q, make: str, model: str, year: int, mileage: int, condition: str
 ):
-    # Implement your model prediction logic here, replacing this placeholder
     predicted_price = await predict_price(make, model, year, mileage, condition)
 
-    # Update the predicted price card
     add_card(
         q,
         "predicted_price_card",
@@ -284,9 +311,9 @@ async def update_predicted_price(
 async def predict_price(
     make: str, model: str, year: int, mileage: int, condition: str
 ) -> float:
-    """model = h2o.import_mojo(
+    model = h2o.import_mojo(
         "./Model/StackedEnsemble_AllModels_1_AutoML_1_20240218_204552.zip"
-    )"""
+    )
     column_names = [
         "Year",
         "Mileage",
@@ -326,20 +353,18 @@ async def predict_price(
             data.append(0)
 
     data = np.array([data])
-    """ data_frame = h2o.H2OFrame(
+    data_frame = h2o.H2OFrame(
         data,
         column_names=column_names,
-    ) """
+    )
 
-    # predictions = model.predict(data_frame)
-    predictions = 12312.454
+    predictions = model.predict(data_frame)
     print(predictions)
 
-    # return round(predictions.flatten(), 2)
-    return predictions
+    return round(predictions.flatten(), 2)
 
 
-""" async def predict(q):
+async def train_model(q):
     # Load the data
     df = h2o.import_file("data/car_dataset.csv")
 
@@ -362,33 +387,13 @@ async def predict_price(
     predictions = best_model.predict(test)
     print(predictions)
 
-    path = './Model/model.zip'
+    path = "./Model/model.zip"
     best_model.save_mojo(path)
 
     # Return the predictions
-    return predictions """
+    return predictions
 
 
-@on()
-async def change_theme(q: Q):
-    """Change the app from light to dark mode"""
-    if q.client.dark_mode:
-        q.page["header"].items = [
-            ui.menu(
-                [ui.command(name="change_theme", icon="ClearNight", label="Dark mode")]
-            )
-        ]
-        q.page["meta"].theme = "light"
-        q.client.dark_mode = False
-    else:
-        q.page["header"].items = [
-            ui.menu([ui.command(name="change_theme", icon="Sunny", label="Light mode")])
-        ]
-        q.page["meta"].theme = "h2o-dark"
-        q.client.dark_mode = True
-
-
-# Use for cards that should be deleted on calling `clear_cards`. Useful for routing and page updates.
 def add_card(q, name, card) -> None:
     q.client.cards.add(name)
     q.page[name] = card
