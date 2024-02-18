@@ -3,7 +3,7 @@ import h2o
 from h2o.automl import H2OAutoML
 import time, numpy as np
 
-h2o.init()
+# h2o.init()
 
 
 @app("/predictor")
@@ -13,6 +13,13 @@ async def serve(q: Q):
         await init(q)
         q.client.initialized = True
 
+    """ try:
+        make, model, year, mileage, condition = get_form_data()
+    except Exception as e:
+        # Handle the exception here
+        print(f"An error occurred: {str(e)}") """
+
+    await home(q)
     # When the user clicks the predict button
     if q.args.predict:
         await predict_button_click(q)
@@ -29,7 +36,16 @@ async def init(q: Q) -> None:
     q.page["meta"] = ui.meta_card(
         box="",
         title="My Wave App",
-        theme="light",
+        themes=[
+            ui.theme(
+                name="my-awesome-theme",
+                primary="#ffdd51",
+                text="#e8e1e1",
+                card="#373737",
+                page="#070b1a",
+            )
+        ],
+        theme="my-awesome-theme",
         layouts=[
             ui.layout(
                 breakpoint="xs",
@@ -59,6 +75,19 @@ async def init(q: Q) -> None:
                                 direction=ui.ZoneDirection.ROW,
                                 justify="center",
                                 size="1",
+                                wrap="between",
+                                zones=[
+                                    ui.zone(
+                                        "bottom_horizontal_left",
+                                        size="130px",
+                                        justify="center",
+                                    ),
+                                    ui.zone(
+                                        "bottom_horizontal_right",
+                                        size="500px",
+                                        justify="center",
+                                    ),
+                                ],
                             ),
                         ],
                     ),
@@ -71,14 +100,10 @@ async def init(q: Q) -> None:
     header(q)
     footer(q)
 
-    await home(q)
-
 
 @on()
-async def home(q: Q):
-    clear_cards(q)
-
-    content = "Predicted Price: $10000"
+async def home(q: Q) -> None:
+    # clear_cards(q)
 
     add_card(
         q,
@@ -91,7 +116,7 @@ async def home(q: Q):
                     name="make",
                     placeholder="Select Make",
                     label="Make",
-                    value="Chevrolet",
+                    value=q.args.make,
                     choices=[
                         ui.choice(name=x, label=x)
                         for x in ["Chevrolet", "Ford", "Honda", "Nissan", "Toyota"]
@@ -112,7 +137,7 @@ async def home(q: Q):
                     name="model",
                     placeholder="Select Model",
                     label="Model",
-                    value="Silverado",
+                    value=q.args.model,
                     choices=[
                         ui.choice(name=x, label=x)
                         for x in ["Altima", "Civic", "Camry", "F-150", "Silverado"]
@@ -132,7 +157,7 @@ async def home(q: Q):
                     required=True,
                     name="year",
                     label="Enter Build Year",
-                    value="2014",
+                    value=q.args.year,
                     placeholder="Year",
                 )
             ],
@@ -149,7 +174,7 @@ async def home(q: Q):
                     required=True,
                     name="mileage",
                     label="Enter Mileage",
-                    value="10000",
+                    value=q.args.mileage,
                     placeholder="Mileage",
                 )
             ],
@@ -166,7 +191,7 @@ async def home(q: Q):
                     required=True,
                     name="condition",
                     label="Condition",
-                    value="good",
+                    value=q.args.condition,
                     choices=[
                         ui.choice(name="fair", label="Fair"),
                         ui.choice(name="good", label="Good"),
@@ -181,7 +206,7 @@ async def home(q: Q):
         q,
         "submit",
         ui.form_card(
-            box="bottom_horizontal",
+            box="bottom_horizontal_left",
             items=[
                 ui.buttons(
                     items=[
@@ -196,37 +221,18 @@ async def home(q: Q):
         q,
         "predicted_price_card",
         ui.form_card(
-            box="bottom_horizontal",
-            items=[
-                ui.text(content=content, name="predicted_price"),
-            ],
-        ),
-    )
-
-
-async def update_predicted_price(
-    q: Q, make: str, model: str, year: int, mileage: int, condition: str
-):
-    # Implement your model prediction logic here, replacing this placeholder
-    predicted_price = predict_price(make, model, year, mileage, condition)
-
-    # Update the predicted price card
-    add_card(
-        q,
-        "predicted_price_card",
-        ui.form_card(
-            box="bottom_horizontal",
+            box="bottom_horizontal_right",
             items=[
                 ui.text(
-                    content=f"Predicted Price: ${predicted_price}",
+                    content="Please fill all the fields to predict the price of a car.",
                     name="predicted_price",
+                    size="l",
                 ),
             ],
         ),
     )
 
 
-@on()
 async def predict_button_click(q: Q):
     # Extract values from form elements (or other data sources)
     try:
@@ -235,6 +241,7 @@ async def predict_button_click(q: Q):
         year = int(q.args.year)
         mileage = int(q.args.mileage)
         condition = q.args.condition
+        print(make, model, year, mileage, condition)
 
         await update_predicted_price(q, make, model, year, mileage, condition)
 
@@ -251,56 +258,84 @@ async def predict_button_click(q: Q):
     return
 
 
-def predict_price(
-    make: str, model: str, year: int, mileage: int, condition: str
-) -> float:
+async def update_predicted_price(
+    q: Q, make: str, model: str, year: int, mileage: int, condition: str
+):
+    # Implement your model prediction logic here, replacing this placeholder
+    predicted_price = await predict_price(make, model, year, mileage, condition)
 
-    model = h2o.import_mojo("./Model/StackedEnsemble_AllModels_1_AutoML_1.zip")
-    column_names=[
-            "Year",
-            "Mileage",
-            "Make_Chevrolet",
-            "Make_Ford",
-            "Make_Honda",
-            "Make_Nissan",
-            "Make_Toyota",
-            "Model_Altima",
-            "Model_Camry",
-            "Model_Civic",
-            "Model_F-150",
-            "Model_Silverado",
-            "Condition_Excellent",
-            "Condition_Fair",
-            "Condition_Good",
-        ]
-    
-    data = [{year}, {mileage}]
-    
-    for i in range(2, 7):
-        if column_names[i].contains(make):
-            data.append(1)
-        else:
-            data.append(0)
-    for i in range(7, 12):
-        if column_names[i].contains(model):
-            data.append(1)
-        else:
-            data.append(0)
-            
-    for i in range(12, 15):
-        if column_names[i].contains(condition):
-            data.append(1)
-        else:
-            data.append(0)
-    
-    data = np.array([data])
-    data_frame = h2o.H2OFrame(
-        data,
-        column_names=column_names,
+    # Update the predicted price card
+    add_card(
+        q,
+        "predicted_price_card",
+        ui.form_card(
+            box="bottom_horizontal_right",
+            items=[
+                ui.text(
+                    content=f"Predicted Price: ${predicted_price}",
+                    name="predicted_price",
+                    size="l",
+                ),
+            ],
+        ),
     )
 
-    predictions = model.predict(data_frame)
 
+async def predict_price(
+    make: str, model: str, year: int, mileage: int, condition: str
+) -> float:
+    """model = h2o.import_mojo(
+        "./Model/StackedEnsemble_AllModels_1_AutoML_1_20240218_204552.zip"
+    )"""
+    column_names = [
+        "Year",
+        "Mileage",
+        "Make_Chevrolet",
+        "Make_Ford",
+        "Make_Honda",
+        "Make_Nissan",
+        "Make_Toyota",
+        "Model_Altima",
+        "Model_Camry",
+        "Model_Civic",
+        "Model_F-150",
+        "Model_Silverado",
+        "Condition_Excellent",
+        "Condition_Fair",
+        "Condition_Good",
+    ]
+
+    data = [year, mileage]
+
+    for i in range(2, 7):
+        if str(make) in column_names[i].lower():
+            data.append(1)
+        else:
+            data.append(0)
+
+    for i in range(7, 12):
+        if str(model) in column_names[i].lower():
+            data.append(1)
+        else:
+            data.append(0)
+
+    for i in range(12, 15):
+        if str(condition) in column_names[i].lower():
+            data.append(1)
+        else:
+            data.append(0)
+
+    data = np.array([data])
+    """ data_frame = h2o.H2OFrame(
+        data,
+        column_names=column_names,
+    ) """
+
+    # predictions = model.predict(data_frame)
+    predictions = 12312.454
+    print(predictions)
+
+    # return round(predictions.flatten(), 2)
     return predictions
 
 
@@ -396,6 +431,7 @@ def header(q: Q):
                 button=True,
             )
         ],
+        color="primary",
     )
 
 
