@@ -1,6 +1,7 @@
 from h2o_wave import main, app, Q, ui, on, run_on
 import h2o
 from h2o.automl import H2OAutoML
+import time, numpy as np
 
 # h2o.init()
 
@@ -11,6 +12,10 @@ async def serve(q: Q):
     if not q.client.initialized:
         await init(q)
         q.client.initialized = True
+
+    # When the user clicks the predict button
+    if q.args.predict:
+        await predict_button_click(q)
 
     # Other browser interactions
     await run_on(q)
@@ -44,13 +49,15 @@ async def init(q: Q) -> None:
                                 align="center",
                             ),
                             ui.zone(
-                                "horizontal",
+                                "middle_horizontal",
                                 direction=ui.ZoneDirection.ROW,
                                 justify="center",
                                 wrap="between",
                             ),
                             ui.zone(
-                                "vertical",
+                                "bottom_horizontal",
+                                direction=ui.ZoneDirection.ROW,
+                                justify="center",
                                 size="1",
                             ),
                         ],
@@ -71,6 +78,8 @@ async def init(q: Q) -> None:
 async def home(q: Q):
     clear_cards(q)
 
+    content = "Predicted Price: $10000"
+
     add_card(
         q,
         "make",
@@ -80,9 +89,12 @@ async def home(q: Q):
                 ui.dropdown(
                     required=True,
                     name="make",
+                    placeholder="Select Make",
                     label="Make",
+                    value="Chevrolet",
                     choices=[
-                        ui.choice(name=x, label=x) for x in ["Chevrolet", "Ford", "Honda", "Nissan", "Toyota"]
+                        ui.choice(name=x, label=x)
+                        for x in ["Chevrolet", "Ford", "Honda", "Nissan", "Toyota"]
                     ],
                 )
             ],
@@ -98,9 +110,12 @@ async def home(q: Q):
                 ui.dropdown(
                     required=True,
                     name="model",
+                    placeholder="Select Model",
                     label="Model",
+                    value="Silverado",
                     choices=[
-                        ui.choice(name=x, label=x) for x in ["Altima", "Civic", "Camry", "F-150", "Silverado"]
+                        ui.choice(name=x, label=x)
+                        for x in ["Altima", "Civic", "Camry", "F-150", "Silverado"]
                     ],
                 ),
             ],
@@ -111,13 +126,13 @@ async def home(q: Q):
         q,
         "year",
         ui.form_card(
-            box="horizontal",
+            box="middle_horizontal",
             items=[
                 ui.textbox(
                     required=True,
                     name="year",
-                    label="Year",
-                    value="",
+                    label="Enter Build Year",
+                    value="23423",
                     placeholder="Year",
                 )
             ],
@@ -128,13 +143,13 @@ async def home(q: Q):
         q,
         "mileage",
         ui.form_card(
-            box="horizontal",
+            box="middle_horizontal",
             items=[
                 ui.textbox(
                     required=True,
                     name="mileage",
-                    label="Mileage",
-                    value="",
+                    label="Enter Mileage",
+                    value="1234",
                     placeholder="Mileage",
                 )
             ],
@@ -145,12 +160,13 @@ async def home(q: Q):
         q,
         "condition",
         ui.form_card(
-            box="horizontal",
+            box="middle_horizontal",
             items=[
                 ui.choice_group(
                     required=True,
                     name="condition",
                     label="Condition",
+                    value="good",
                     choices=[
                         ui.choice(name="fair", label="Fair"),
                         ui.choice(name="good", label="Good"),
@@ -160,6 +176,116 @@ async def home(q: Q):
             ],
         ),
     )
+
+    add_card(
+        q,
+        "submit",
+        ui.form_card(
+            box="bottom_horizontal",
+            items=[
+                ui.buttons(
+                    items=[
+                        ui.button(name="predict", label="Predict", primary=True),
+                    ]
+                )
+            ],
+        ),
+    )
+
+    add_card(
+        q,
+        "predicted_price_card",
+        ui.form_card(
+            box="bottom_horizontal",
+            items=[
+                ui.text(content=content, name="predicted_price"),
+            ],
+        ),
+    )
+
+
+async def update_predicted_price(
+    q: Q, make: str, model: str, year: int, mileage: int, condition: str
+):
+    # Implement your model prediction logic here, replacing this placeholder
+    predicted_price = predict_price(make, model, year, mileage, condition)
+
+    # Update the predicted price card
+    add_card(
+        q,
+        "predicted_price_card",
+        ui.form_card(
+            box="bottom_horizontal",
+            items=[
+                ui.text(
+                    content=f"Predicted Price: ${predicted_price}",
+                    name="predicted_price",
+                ),
+            ],
+        ),
+    )
+
+
+@on()
+async def predict_button_click(q: Q):
+    # Extract values from form elements (or other data sources)
+    try:
+        make = q.args.make
+        model = q.args.model
+        year = int(q.args.year)
+        mileage = int(q.args.mileage)
+        condition = q.args.condition
+
+        await update_predicted_price(q, make, model, year, mileage, condition)
+
+    except Exception as e:
+        q.page["meta"].dialog = ui.dialog(
+            title="Error!",
+            name="error_dialog",
+            items=[
+                ui.text("Please fill all the fields with valid data!"),
+            ],
+            closable=True,
+        )
+    
+    return
+
+
+def predict_price(
+    make: str, model: str, year: int, mileage: int, condition: str
+) -> float:
+    # Implement your model prediction logic here, replacing this placeholder
+    return 103000.0
+
+
+""" async def predict(q):
+    # Load the data
+    df = h2o.import_file("data/car_dataset.csv")
+
+    # Split the data into training and testing sets
+    train, test = df.split_frame(ratios=[0.8])
+
+    # Identify the response and predictor variables
+    y = "Price"
+    x = df.columns
+    x.remove(y)
+
+    # Run AutoML
+    aml = H2OAutoML(max_runtime_secs=60)
+    aml.train(x=x, y=y, training_frame=train)
+
+    # Get the best model
+    best_model = aml.leader
+
+    # Make predictions
+    predictions = best_model.predict(test)
+    print(predictions)
+
+    path = './Model/model.zip'
+    best_model.save_mojo(path)
+
+    # Return the predictions
+    return predictions """
 
 
 @on()
@@ -194,29 +320,20 @@ def clear_cards(q, ignore=[]) -> None:
             q.client.cards.remove(name)
 
 
-def add_search_box(q: Q, msg):
-    q.page["search_box"] = ui.form_card(
-        box="2 2 10 2",
-        items=[
-            ui.textbox(
-                name="search_box_input",
-                label="Book Name",
-                value=q.args.search_box_input,
-            ),
-            ui.buttons(
-                items=[
-                    ui.button(
-                        name="search",
-                        label="Search",
-                        primary=True,
-                        icon="BookAnswers",
-                    ),
-                    ui.button(name="find_books", label="Find Book", primary=False),
-                ]
-            ),
-            ui.text(msg, size="m", name="msg_text"),
-        ],
-    )
+async def show_timer(q: Q):
+    main_page = q.page["predictor"]
+    max_runtime_secs = q.args.max_runtime_secs
+    for i in range(1, max_runtime_secs):
+        pct_complete = int(np.ceil(i / max_runtime_secs * 100))
+        main_page.items = [
+            ui.progress(
+                label="Training Progress",
+                caption=f"{pct_complete}% complete",
+                value=i / max_runtime_secs,
+            )
+        ]
+        await q.page.save()
+        await q.sleep(1)
 
 
 def header(q: Q):
@@ -228,7 +345,7 @@ def header(q: Q):
         items=[
             ui.link(
                 name="github_btn",
-                path="https://github.com/ChathurindaRanasinghe/book-recommendation-system_using_h2o-wave.git",
+                path="https://github.com/z1nc0r3/Laptop-Price-Predictor-using-H2O-wave",
                 label="GitHub",
                 button=True,
             )
