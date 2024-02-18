@@ -3,7 +3,7 @@ import h2o
 from h2o.automl import H2OAutoML
 import time, numpy as np
 
-# h2o.init()
+h2o.init()
 
 
 @app("/predictor")
@@ -132,7 +132,7 @@ async def home(q: Q):
                     required=True,
                     name="year",
                     label="Enter Build Year",
-                    value="23423",
+                    value="2014",
                     placeholder="Year",
                 )
             ],
@@ -149,7 +149,7 @@ async def home(q: Q):
                     required=True,
                     name="mileage",
                     label="Enter Mileage",
-                    value="1234",
+                    value="10000",
                     placeholder="Mileage",
                 )
             ],
@@ -243,19 +243,65 @@ async def predict_button_click(q: Q):
             title="Error!",
             name="error_dialog",
             items=[
-                ui.text("Please fill all the fields with valid data!"),
+                ui.text(f"Please fill all the fields with valid data! {str(e)}"),
             ],
             closable=True,
         )
-    
+
     return
 
 
 def predict_price(
     make: str, model: str, year: int, mileage: int, condition: str
 ) -> float:
-    # Implement your model prediction logic here, replacing this placeholder
-    return 103000.0
+
+    model = h2o.import_mojo("./Model/StackedEnsemble_AllModels_1_AutoML_1.zip")
+    column_names=[
+            "Year",
+            "Mileage",
+            "Make_Chevrolet",
+            "Make_Ford",
+            "Make_Honda",
+            "Make_Nissan",
+            "Make_Toyota",
+            "Model_Altima",
+            "Model_Camry",
+            "Model_Civic",
+            "Model_F-150",
+            "Model_Silverado",
+            "Condition_Excellent",
+            "Condition_Fair",
+            "Condition_Good",
+        ]
+    
+    data = [{year}, {mileage}]
+    
+    for i in range(2, 7):
+        if column_names[i].contains(make):
+            data.append(1)
+        else:
+            data.append(0)
+    for i in range(7, 12):
+        if column_names[i].contains(model):
+            data.append(1)
+        else:
+            data.append(0)
+            
+    for i in range(12, 15):
+        if column_names[i].contains(condition):
+            data.append(1)
+        else:
+            data.append(0)
+    
+    data = np.array([data])
+    data_frame = h2o.H2OFrame(
+        data,
+        column_names=column_names,
+    )
+
+    predictions = model.predict(data_frame)
+
+    return predictions
 
 
 """ async def predict(q):
