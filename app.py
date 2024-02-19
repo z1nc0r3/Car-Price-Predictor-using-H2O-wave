@@ -2,8 +2,10 @@ from h2o_wave import main, app, Q, ui, on, run_on
 import h2o
 from h2o.automl import H2OAutoML
 import time, numpy as np
+from collections import defaultdict
+import pandas as pd
 
-# h2o.init()
+h2o.init()
 
 
 @app("/predictor")
@@ -17,6 +19,10 @@ async def serve(q: Q):
 
     if q.args.predict:
         await predict_button_click(q)
+
+    if q.args.submit and q.args.file_upload:
+        local_path = await upload_data(q)
+        handle_table(q, local_path)
 
     # Other browser interactions
     await run_on(q)
@@ -122,6 +128,7 @@ async def home(q: Q) -> None:
                 box="model_importer",
                 items=[
                     ui.file_upload(
+                        required=True,
                         name="file_upload",
                         label="Select one or more files to upload",
                         compact=True,
@@ -261,6 +268,56 @@ async def home(q: Q) -> None:
             ],
         ),
     )
+
+
+async def upload_data(q: Q):
+    uploaded_files_dict = defaultdict()
+
+    uploaded_file_path = q.args.file_upload
+    filename = uploaded_file_path[0].split("/")[-1]
+    uploaded_files_dict[filename] = uploaded_file_path[0]
+
+    try:
+        local_path = await q.site.download(uploaded_file_path[0], "./Data")
+        print(f"File downloaded to: {local_path}")
+    except Exception as e:
+        print(f"Error downloading file: {e}")
+
+    return local_path
+
+
+def make_markdown_row(values):
+    return f"| {' | '.join([str(x) for x in values])} |"
+
+
+def make_markdown_table(fields, rows):
+    return "\n".join(
+        [
+            make_markdown_row(fields),
+            make_markdown_row("-" * len(fields)),
+            "\n".join([make_markdown_row(row) for row in rows]),
+        ]
+    )
+
+
+def handle_table(q, local_path):
+    if "file_upload" in q.args:
+        df = pd.read_csv(local_path)
+        add_card(
+            q,
+            "table",
+            ui.form_card(
+                box="model_importer",
+                items=[
+                    ui.text(
+                        make_markdown_table(
+                            fields=df.columns.tolist(),
+                            rows=list(map(str, df.values.tolist()[i]) for i in df.index[0:100]),
+                        )
+                    ),
+                ],
+            ),
+        )
 
 
 async def predict_button_click(q: Q):
