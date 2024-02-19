@@ -408,7 +408,7 @@ def handle_table(q, local_path):
                 title="Error!",
                 name="error_dialog",
                 items=[
-                    ui.text(f"{str(e)}"),
+                    ui.text("Something went wrong! Please try again."),
                 ],
                 closable=True,
             )

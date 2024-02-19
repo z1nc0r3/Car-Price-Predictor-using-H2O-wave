@@ -32,7 +32,7 @@ class Predictor:
                 title="Error!",
                 name="error_dialog",
                 items=[
-                    ui.text(f"Please fill all the fields with valid data! {str(e)}"),
+                    ui.text(f"Please fill all the fields with valid data!"),
                 ],
                 closable=True,
             )
