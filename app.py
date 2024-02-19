@@ -6,7 +6,6 @@ from collections import defaultdict
 import pandas as pd
 import asyncio
 import concurrent.futures
-from threading import Event
 
 h2o.init()
 
@@ -32,7 +31,7 @@ async def serve(q: Q):
         print(q.client.local_path)
         handle_table(q, local_path)
 
-    if q.args.train_model and q.client.local_path:
+    if q.args.train_model:
         print("train_model", q.client.local_path)
         await train_model(q, q.client.local_path)
 
@@ -72,6 +71,7 @@ async def init(q: Q) -> None:
                             ui.zone(
                                 "model_importer",
                                 direction=ui.ZoneDirection.COLUMN,
+                                size="1",
                             ),
                             ui.zone(
                                 "top_horizontal",
@@ -79,41 +79,12 @@ async def init(q: Q) -> None:
                                 justify="center",
                                 wrap="between",
                                 align="center",
-                                zones=[
-                                    ui.zone(
-                                        "top_horizontal_left",
-                                        justify="center",
-                                        size="50%",
-                                    ),
-                                    ui.zone(
-                                        "top_horizontal_right",
-                                        justify="center",
-                                        size="50%",
-                                    ),
-                                ],
                             ),
                             ui.zone(
                                 "middle_horizontal",
                                 direction=ui.ZoneDirection.ROW,
                                 justify="center",
                                 wrap="between",
-                                zones=[
-                                    ui.zone(
-                                        "middle_horizontal_left",
-                                        size="33.33%",
-                                        justify="center",
-                                    ),
-                                    ui.zone(
-                                        "middle_horizontal_middle",
-                                        size="33.33%",
-                                        justify="center",
-                                    ),
-                                    ui.zone(
-                                        "middle_horizontal_right",
-                                        size="33.33%",
-                                        justify="center",
-                                    ),
-                                ],
                             ),
                             ui.zone(
                                 "bottom_horizontal",
@@ -156,14 +127,11 @@ async def home(q: Q) -> None:
                 box="model_importer",
                 items=[
                     ui.text(f"file_upload={q.args.file_upload}"),
-                    ui.buttons(
-                        justify="start",
-                        items=[
-                            ui.button(name="submit", label="Submit", primary=True),
-                            ui.button(
-                                name="train_model", label="Train Model", primary=True
-                            ),
-                        ],
+                    ui.button(name="submit", label="Submit", primary=True),
+                    ui.button(
+                        name="train_model",
+                        label="Train Model",
+                        primary=True,
                     ),
                 ],
             ),
@@ -182,18 +150,11 @@ async def home(q: Q) -> None:
                         compact=True,
                         multiple=False,
                         file_extensions=["csv"],
-                        max_file_size=5,
-                        max_size=5,
+                        max_file_size=1,
+                        max_size=15,
                     ),
-                    ui.buttons(
-                        justify="start",
-                        items=[
-                            ui.button(name="submit", label="Submit", primary=True),
-                            ui.button(
-                                name="train_model", label="Train Model", primary=True
-                            ),
-                        ],
-                    ),
+                    ui.button(name="submit", label="Submit", primary=True),
+                    ui.button(name="train_model", label="Train Model", primary=True),
                 ],
             ),
         )
@@ -202,7 +163,7 @@ async def home(q: Q) -> None:
         q,
         "make",
         ui.form_card(
-            box="top_horizontal_left",
+            box="top_horizontal",
             items=[
                 ui.dropdown(
                     required=True,
@@ -223,7 +184,7 @@ async def home(q: Q) -> None:
         q,
         "model",
         ui.form_card(
-            box="top_horizontal_right",
+            box="top_horizontal",
             items=[
                 ui.dropdown(
                     required=True,
@@ -244,7 +205,7 @@ async def home(q: Q) -> None:
         q,
         "year",
         ui.form_card(
-            box="middle_horizontal_left",
+            box="middle_horizontal",
             items=[
                 ui.textbox(
                     required=True,
@@ -261,7 +222,7 @@ async def home(q: Q) -> None:
         q,
         "mileage",
         ui.form_card(
-            box="middle_horizontal_middle",
+            box="middle_horizontal",
             items=[
                 ui.textbox(
                     required=True,
@@ -278,7 +239,7 @@ async def home(q: Q) -> None:
         q,
         "condition",
         ui.form_card(
-            box="middle_horizontal_right",
+            box="middle_horizontal",
             items=[
                 ui.choice_group(
                     required=True,
@@ -382,7 +343,7 @@ def handle_table(q, local_path):
                         make_markdown_table(
                             fields=df.columns.tolist(),
                             rows=list(
-                                map(str, df.values.tolist()[i]) for i in df.index[0:6]
+                                map(str, df.values.tolist()[i]) for i in df.index[0:10]
                             ),
                         )
                     ),
@@ -442,7 +403,7 @@ async def predict_price(
     make: str, model: str, year: int, mileage: int, condition: str
 ) -> float:
     model = h2o.import_mojo(
-        "./Model/StackedEnsemble_AllModels_1_AutoML_1_20240219_131326.zip"
+        "./Model/StackedEnsemble_AllModels_1_AutoML_1_20240218_204552.zip"
     )
     column_names = [
         "Year",
@@ -494,21 +455,9 @@ async def predict_price(
     return round(predictions.flatten(), 2)
 
 
-async def train_model(q: Q, local_path: str):
-    try:
-        df = h2o.import_file(local_path)
-    except Exception as e:
-        q.page["meta"].dialog = ui.dialog(
-            title="Error!",
-            name="error_dialog",
-            items=[
-                ui.text("Something went wrong!"),
-            ],
-            closable=True,
-        )
+async def train_model(q, local_path):
+    df = h2o.import_file(local_path)
 
-        return
-    
     train, test = df.split_frame(ratios=[0.7])
 
     y = "Price"
@@ -516,12 +465,12 @@ async def train_model(q: Q, local_path: str):
     x.remove(y)
 
     aml = H2OAutoML(max_models=10, seed=10, verbosity="info", nfolds=8)
-
+    # 
+    
     future = asyncio.ensure_future(show_timer(q))
     with concurrent.futures.ThreadPoolExecutor() as pool:
         await q.exec(pool, aml_train, aml, x, y, train)
     future.cancel()
-    q.page["meta"].dialog = None
 
     best_model = aml.leader
 
@@ -531,7 +480,6 @@ async def train_model(q: Q, local_path: str):
     best_model.save_mojo(path)
 
     return predictions
-
 
 def aml_train(aml, x, y, train):
     aml.train(x=x, y=y, training_frame=train)
@@ -550,16 +498,17 @@ def clear_cards(q, ignore=[]) -> None:
 
 
 async def show_timer(q: Q):
-    for i in range(1, 100):
-        q.page["meta"].dialog = ui.dialog(
-            title="Training Model",
-            items=[
-                ui.text(f"Training model... {i}%"),
-            ],
-            closable=False,
-            blocking=True,
-        )
-        
+    main_page = q.page["meta"]
+    max_runtime_secs = 60
+    for i in range(1, max_runtime_secs):
+        pct_complete = int(np.ceil(i / max_runtime_secs * 100))
+        main_page.items = [
+            ui.progress(
+                label="Training Progress",
+                caption=f"{pct_complete}% complete",
+                value=i / max_runtime_secs,
+            )
+        ]
         await q.page.save()
         await q.sleep(1)
 
