@@ -637,7 +637,7 @@ def post_training(q):
 
 
 async def show_progress(q: Q):
-    for i in range(1, 40):
+    for i in range(1, 25):
         q.page["meta"].dialog = ui.dialog(
             title="Training Model",
             items=[
@@ -645,6 +645,7 @@ async def show_progress(q: Q):
             ],
             closable=False,
             blocking=True,
+            width="300px",
         )
 
         await q.page.save()
