@@ -4,6 +4,8 @@ from h2o.automl import H2OAutoML
 import time, numpy as np
 from collections import defaultdict
 import pandas as pd
+import asyncio
+import concurrent.futures
 
 h2o.init()
 
@@ -16,13 +18,22 @@ async def serve(q: Q):
         q.client.initialized = True
 
     await home(q)
+    q.page["meta"].dialog = None
 
     if q.args.predict:
+        print("predict")
         await predict_button_click(q)
 
     if q.args.submit and q.args.file_upload:
+        print("submit and file_upload")
         local_path = await upload_data(q)
+        q.client.local_path = local_path
+        print(q.client.local_path)
         handle_table(q, local_path)
+
+    if q.args.train_model:
+        print("train_model", q.client.local_path)
+        await train_model(q, q.client.local_path)
 
     # Other browser interactions
     await run_on(q)
@@ -39,7 +50,7 @@ async def init(q: Q) -> None:
         themes=[
             ui.theme(
                 name="my-awesome-theme",
-                primary="#ffdd51",
+                primary="#ffe600",
                 text="#e8e1e1",
                 card="#373737",
                 page="#070b1a",
@@ -116,7 +127,12 @@ async def home(q: Q) -> None:
                 box="model_importer",
                 items=[
                     ui.text(f"file_upload={q.args.file_upload}"),
-                    ui.button(name="show_upload", label="Back", primary=True),
+                    ui.button(name="submit", label="Submit", primary=True),
+                    ui.button(
+                        name="train_model",
+                        label="Train Model",
+                        primary=True,
+                    ),
                 ],
             ),
         )
@@ -138,6 +154,7 @@ async def home(q: Q) -> None:
                         max_size=15,
                     ),
                     ui.button(name="submit", label="Submit", primary=True),
+                    ui.button(name="train_model", label="Train Model", primary=True),
                 ],
             ),
         )
@@ -302,7 +319,20 @@ def make_markdown_table(fields, rows):
 
 def handle_table(q, local_path):
     if "file_upload" in q.args:
-        df = pd.read_csv(local_path)
+        try:
+            df = pd.read_csv(local_path)
+        except Exception as e:
+            q.page["meta"].dialog = ui.dialog(
+                title="Error!",
+                name="error_dialog",
+                items=[
+                    ui.text(f"{str(e)}"),  # TODO: add error message
+                ],
+                closable=True,
+            )
+
+            return
+
         add_card(
             q,
             "table",
@@ -312,7 +342,9 @@ def handle_table(q, local_path):
                     ui.text(
                         make_markdown_table(
                             fields=df.columns.tolist(),
-                            rows=list(map(str, df.values.tolist()[i]) for i in df.index[0:100]),
+                            rows=list(
+                                map(str, df.values.tolist()[i]) for i in df.index[0:10]
+                            ),
                         )
                     ),
                 ],
@@ -321,13 +353,15 @@ def handle_table(q, local_path):
 
 
 async def predict_button_click(q: Q):
+    q.args.predict = False
+    q.page["meta"].dialog = None
+
     try:
         make = q.args.make
         model = q.args.model
         year = int(q.args.year)
         mileage = int(q.args.mileage)
         condition = q.args.condition
-        print(make, model, year, mileage, condition)
 
         await update_predicted_price(q, make, model, year, mileage, condition)
 
@@ -421,34 +455,34 @@ async def predict_price(
     return round(predictions.flatten(), 2)
 
 
-async def train_model(q):
-    # Load the data
-    df = h2o.import_file("data/car_dataset.csv")
+async def train_model(q, local_path):
+    df = h2o.import_file(local_path)
 
-    # Split the data into training and testing sets
-    train, test = df.split_frame(ratios=[0.8])
+    train, test = df.split_frame(ratios=[0.7])
 
-    # Identify the response and predictor variables
     y = "Price"
     x = df.columns
     x.remove(y)
 
-    # Run AutoML
-    aml = H2OAutoML(max_runtime_secs=60)
-    aml.train(x=x, y=y, training_frame=train)
+    aml = H2OAutoML(max_models=10, seed=10, verbosity="info", nfolds=8)
+    # 
+    
+    future = asyncio.ensure_future(show_timer(q))
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        await q.exec(pool, aml_train, aml, x, y, train)
+    future.cancel()
 
-    # Get the best model
     best_model = aml.leader
 
-    # Make predictions
     predictions = best_model.predict(test)
-    print(predictions)
 
-    path = "./Model/model.zip"
+    path = "./Model/"
     best_model.save_mojo(path)
 
-    # Return the predictions
     return predictions
+
+def aml_train(aml, x, y, train):
+    aml.train(x=x, y=y, training_frame=train)
 
 
 def add_card(q, name, card) -> None:
@@ -464,8 +498,8 @@ def clear_cards(q, ignore=[]) -> None:
 
 
 async def show_timer(q: Q):
-    main_page = q.page["predictor"]
-    max_runtime_secs = q.args.max_runtime_secs
+    main_page = q.page["meta"]
+    max_runtime_secs = 60
     for i in range(1, max_runtime_secs):
         pct_complete = int(np.ceil(i / max_runtime_secs * 100))
         main_page.items = [
