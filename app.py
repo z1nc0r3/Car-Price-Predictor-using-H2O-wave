@@ -7,36 +7,32 @@ import pandas as pd
 import asyncio
 import concurrent.futures
 from threading import Event
+import os
 
-# h2o.init()
+h2o.init()
 
 
 @app("/predictor")
 async def serve(q: Q):
-    # First time a browser comes to the app
     if not q.client.initialized:
         await init(q)
         q.client.initialized = True
 
+    q.client.models = os.listdir("./Model")
     await home(q)
     q.page["meta"].dialog = None
 
-    if q.args.predict:
-        print("predict")
+    if q.args.predict and q.args.model:
         await predict_button_click(q)
 
     if q.args.submit and q.args.file_upload:
-        print("submit and file_upload")
         local_path = await upload_data(q)
         q.client.local_path = local_path
-        print(q.client.local_path)
         handle_table(q, local_path)
 
     if q.args.train_model and q.client.local_path:
-        print("train_model", q.client.local_path)
         await train_model(q, q.client.local_path)
 
-    # Other browser interactions
     await run_on(q)
     await q.page.save()
 
@@ -114,6 +110,12 @@ async def init(q: Q) -> None:
                                         justify="center",
                                     ),
                                 ],
+                            ),
+                            ui.zone(
+                                "model_selector",
+                                direction=ui.ZoneDirection.ROW,
+                                justify="center",
+                                wrap="between",
                             ),
                             ui.zone(
                                 "bottom_horizontal",
@@ -297,6 +299,24 @@ async def home(q: Q) -> None:
 
     add_card(
         q,
+        "model_selector",
+        ui.form_card(
+            box="model_selector",
+            items=[
+                ui.dropdown(
+                    required=True,
+                    name="model",
+                    placeholder="Select Model",
+                    label="Model",
+                    value=q.args.model,
+                    choices=[ui.choice(name=x, label=x) for x in q.client.models],
+                )
+            ],
+        ),
+    )
+
+    add_card(
+        q,
         "submit",
         ui.form_card(
             box="bottom_horizontal_left",
@@ -335,9 +355,15 @@ async def upload_data(q: Q):
 
     try:
         local_path = await q.site.download(uploaded_file_path[0], "./Data")
-        print(f"File downloaded to: {local_path}")
     except Exception as e:
-        print(f"Error downloading file: {e}")
+        q.page["meta"].dialog = ui.dialog(
+            title="Error!",
+            name="error_dialog",
+            items=[ui.text("File upload failed!")],
+            closable=True,
+        )
+
+        return
 
     return local_path
 
@@ -365,7 +391,7 @@ def handle_table(q, local_path):
                 title="Error!",
                 name="error_dialog",
                 items=[
-                    ui.text(f"{str(e)}"),  # TODO: add error message
+                    ui.text(f"{str(e)}"),
                 ],
                 closable=True,
             )
@@ -409,7 +435,7 @@ async def predict_button_click(q: Q):
             title="Error!",
             name="error_dialog",
             items=[
-                ui.text(f"Please fill all the fields with valid data! {str(e)}"),
+                ui.text(f"Please fill all the fields with valid data!"),
             ],
             closable=True,
         )
@@ -420,7 +446,7 @@ async def predict_button_click(q: Q):
 async def update_predicted_price(
     q: Q, make: str, model: str, year: int, mileage: int, condition: str
 ):
-    predicted_price = await predict_price(make, model, year, mileage, condition)
+    predicted_price = await predict_price(q, make, model, year, mileage, condition)
 
     add_card(
         q,
@@ -439,11 +465,9 @@ async def update_predicted_price(
 
 
 async def predict_price(
-    make: str, model: str, year: int, mileage: int, condition: str
+    q, make: str, model: str, year: int, mileage: int, condition: str
 ) -> float:
-    model = h2o.import_mojo(
-        "./Model/StackedEnsemble_AllModels_1_AutoML_1_20240219_131326.zip"
-    )
+    model = h2o.import_mojo(f"./Model/{q.args.model}")
     column_names = [
         "Year",
         "Mileage",
@@ -489,7 +513,6 @@ async def predict_price(
     )
 
     predictions = model.predict(data_frame)
-    print(predictions)
 
     return round(predictions.flatten(), 2)
 
@@ -502,13 +525,13 @@ async def train_model(q: Q, local_path: str):
             title="Error!",
             name="error_dialog",
             items=[
-                ui.text("Something went wrong!"),  # TODO: add error message
+                ui.text("Something went wrong!"),
             ],
             closable=True,
         )
 
         return
-    
+
     train, test = df.split_frame(ratios=[0.7])
 
     y = "Price"
@@ -522,6 +545,7 @@ async def train_model(q: Q, local_path: str):
         await q.exec(pool, aml_train, aml, x, y, train)
     future.cancel()
     q.page["meta"].dialog = None
+    q.client.models = os.listdir("./Model")
 
     best_model = aml.leader
 
@@ -559,7 +583,7 @@ async def show_timer(q: Q):
             closable=False,
             blocking=True,
         )
-        
+
         await q.page.save()
         await q.sleep(1)
 
