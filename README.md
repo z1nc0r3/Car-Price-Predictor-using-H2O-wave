@@ -1,13 +1,18 @@
 # Car Price Predictor using H2O Wave
 
-This car price prediction system, built with H2O Wave, H2O AutoML, utilizes features like year,
+This car price prediction system, built with H2O Wave, and H2O AutoML, utilizes features like year,
 mileage, make, model, and condition to estimate vehicle prices.
 
 
-https://github.com/z1nc0r3/Car-Price-Predictor-using-H2O-wave/assets/64279853/ac572d90-f011-491c-8d19-9e60a89f64af
+
+
+https://github.com/z1nc0r3/Car-Price-Predictor-using-H2O-wave/assets/64279853/b93944e0-41ef-4793-9e48-80afb84fb39f
+
+
+
 
 - Train the model with custom datasets (CSV)
-- Use already existing AutoML models to prediction.
+- Use already existing AutoML models for prediction.
 - Save trained AutoML models locally.
 
 
