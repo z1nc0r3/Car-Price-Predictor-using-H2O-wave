@@ -1,12 +1,10 @@
 from h2o_wave import main, app, Q, ui, on, run_on
-from h2o.automl import H2OAutoML
 from collections import defaultdict
 import h2o
-import numpy as np
 import pandas as pd
-import concurrent.futures
-import asyncio
 import os
+from Train.train import Trainer
+from Train.predictor import Predictor
 
 h2o.init()
 
@@ -25,9 +23,12 @@ async def serve(q: Q):
     q.page["meta"].dialog = None
     q.page["meta"].notification_bar = None
 
+    trainer = Trainer()
+    predictor = Predictor()
+
     # Event Handling
     if q.args.predict and q.args.aml_model:
-        await predict_button_click(q)
+        await predictor.predict_button_click(q)
 
     # Handle file upload and data visualization
     if q.args.submit and q.args.file_upload:
@@ -37,7 +38,7 @@ async def serve(q: Q):
 
     # Train the model and save it in the Model directory
     if q.args.train_model and q.client.local_path:
-        await train_model(q, q.client.local_path)
+        await trainer.train_model(q, q.client.local_path)
 
     await run_on(q)
     await q.page.save()
@@ -381,6 +382,9 @@ async def upload_data(q: Q):
     return local_path
 
 
+""" Data Visualization """
+
+
 def make_markdown_row(values):
     return f"| {' | '.join([str(x) for x in values])} |"
 
@@ -393,9 +397,6 @@ def make_markdown_table(fields, rows):
             "\n".join([make_markdown_row(row) for row in rows]),
         ]
     )
-
-
-""" Data Visualization """
 
 
 def handle_table(q, local_path):
@@ -431,225 +432,6 @@ def handle_table(q, local_path):
                 ],
             ),
         )
-
-
-""" Functions for Predicting the price of a car"""
-
-
-async def predict_button_click(q: Q):
-    q.args.predict = False
-    q.page["meta"].dialog = None
-    q.page["meta"].notification_bar = None
-
-    # Predict the price of a car using the given features. User can select the model to use for the prediction.
-    try:
-        make = q.args.make
-        model = q.args.model
-        year = int(q.args.year)
-        mileage = int(q.args.mileage)
-        condition = q.args.condition
-        aml_model = q.args.aml_model
-
-        await update_predicted_price(
-            q, make, model, year, mileage, condition, aml_model
-        )
-
-    except Exception as e:
-        q.page["meta"].dialog = ui.dialog(
-            title="Error!",
-            name="error_dialog",
-            items=[
-                ui.text(f"Please fill all the fields with valid data! {str(e)}"),
-            ],
-            closable=True,
-        )
-
-    return
-
-
-async def update_predicted_price(
-    q: Q, make: str, model: str, year: int, mileage: int, condition: str, aml_model: str
-):
-    predicted_price = await predict_price(
-        q, make, model, year, mileage, condition, aml_model
-    )
-
-    # Update the predicted price card with the predicted price
-    add_card(
-        q,
-        "predicted_price_card",
-        ui.form_card(
-            box="bottom_horizontal_right",
-            items=[
-                ui.text(
-                    content=f"Predicted Price: ${predicted_price}",
-                    name="predicted_price",
-                    size="l",
-                ),
-            ],
-        ),
-    )
-
-
-""" Predicting the price of a car using the given model"""
-
-
-async def predict_price(
-    q, make: str, model: str, year: int, mileage: int, condition: str, aml_model: str
-) -> float:
-    model = h2o.import_mojo(f"./Model/{aml_model}")
-    column_names = [
-        "Year",
-        "Mileage",
-        "Make_Chevrolet",
-        "Make_Ford",
-        "Make_Honda",
-        "Make_Nissan",
-        "Make_Toyota",
-        "Model_Altima",
-        "Model_Camry",
-        "Model_Civic",
-        "Model_F-150",
-        "Model_Silverado",
-        "Condition_Excellent",
-        "Condition_Fair",
-        "Condition_Good",
-    ]
-
-    data = [year, mileage]
-
-    # One-hot encode the make, model and condition of the car
-    for i in range(2, 7):
-        if str(make) in column_names[i].lower():
-            data.append(1)
-        else:
-            data.append(0)
-
-    for i in range(7, 12):
-        if str(model) in column_names[i].lower():
-            data.append(1)
-        else:
-            data.append(0)
-
-    for i in range(12, 15):
-        if str(condition) in column_names[i].lower():
-            data.append(1)
-        else:
-            data.append(0)
-
-    data = np.array([data])
-    print(data)
-    data_frame = h2o.H2OFrame(
-        data,
-        column_names=column_names,
-    )
-
-    predictions = model.predict(data_frame)
-
-    return round(predictions.flatten(), 2)
-
-
-""" Training the model using the given dataset """
-
-
-async def train_model(q: Q, local_path: str):
-    try:
-        df = h2o.import_file(local_path)
-
-        # Split the dataset into training and testing sets
-        train, test = df.split_frame(ratios=[0.7])
-
-        y = "Price"
-        x = df.columns
-        x.remove(y)
-    except Exception as e:
-        q.page["meta"].dialog = ui.dialog(
-            title="Error!",
-            name="error_dialog",
-            items=[
-                ui.text("Something went wrong!"),
-            ],
-            closable=True,
-        )
-
-        return
-
-    # Configure the AutoML model and train the model using the given dataset
-    aml = H2OAutoML(max_models=10, seed=10, verbosity="info", nfolds=8)
-
-    # """ Show a dialog to indicate the training process"""
-    future = asyncio.ensure_future(show_progress(q))
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        await q.exec(pool, aml_train, aml, x, y, train)
-    future.cancel()
-    post_training(q)
-
-    # Save the best trained model in the Model directory
-    best_model = aml.leader
-
-    predictions = best_model.predict(test)
-
-    path = "./Model/"
-    best_model.save_mojo(path)
-    q.client.aml_models = os.listdir(path)
-
-    add_card(
-        q,
-        "model_selector",
-        ui.form_card(
-            box="model_selector",
-            items=[
-                ui.dropdown(
-                    required=True,
-                    name="aml_model",
-                    placeholder="Select Model",
-                    label="Model",
-                    value=q.args.aml_model,
-                    choices=[ui.choice(name=x, label=x) for x in q.client.aml_models],
-                )
-            ],
-        ),
-    )
-
-    await q.page.save()
-
-    return predictions
-
-
-def aml_train(aml, x, y, train):
-    aml.train(x=x, y=y, training_frame=train)
-
-
-def post_training(q):
-    q.page["meta"].dialog = None
-    q.page["meta"] = ui.meta_card(
-        box="",
-        notification_bar=ui.notification_bar(
-            text="Model trained successfully!",
-            type="success",
-            position="top-right",
-            name="notification_bar",
-        ),
-    )
-
-
-""" Show the progress of the training process"""
-
-
-async def show_progress(q: Q):
-    for i in range(1, 25):
-        q.page["meta"].dialog = ui.dialog(
-            title="Training Model",
-            items=[
-                ui.text(f"Training model... {i}%"),
-            ],
-            closable=False,
-            blocking=True,
-            width="300px",
-        )
-
-        await q.page.save()
-        await q.sleep(1)
 
 
 def add_card(q, name, card) -> None:
