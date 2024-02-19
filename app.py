@@ -6,7 +6,7 @@ import os
 from Train.train import Trainer
 from Train.predictor import Predictor
 
-h2o.init()
+# h2o.init()
 
 
 @app("/predictor")
@@ -458,7 +458,7 @@ def header(q: Q):
         items=[
             ui.link(
                 name="github_btn",
-                path="https://github.com/z1nc0r3/Laptop-Price-Predictor-using-H2O-wave",
+                path="https://github.com/z1nc0r3/Car-Price-Predictor-using-H2O-wave",
                 label="GitHub",
                 button=True,
             )
@@ -468,7 +468,7 @@ def header(q: Q):
 
 
 def footer(q: Q):
-    caption = """Made with 💛 by Lasith Manujitha using H2O Wave"""
+    caption = """ · Made with 💛 by [Lasith Manujitha](https://www.linkedin.com/in/lasith-manujitha) using H2O Wave · """
     q.page["footer"] = ui.footer_card(
         box="footer",
         caption=caption,
