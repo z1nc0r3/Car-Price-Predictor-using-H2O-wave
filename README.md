@@ -6,6 +6,9 @@ mileage, make, model, and condition to estimate vehicle prices.
 
 https://github.com/z1nc0r3/Car-Price-Predictor-using-H2O-wave/assets/64279853/ac572d90-f011-491c-8d19-9e60a89f64af
 
+- Train the model with custom datasets (CSV)
+- Use already existing AutoML models to prediction.
+- Save trained AutoML models locally.
 
 
 ## Running the app
