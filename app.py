@@ -17,25 +17,25 @@ async def serve(q: Q):
         await init(q)
         q.client.initialized = True
 
-    """ Load the models from the Model directory """
+    # Load the models from the Model directory
     q.client.aml_models = os.listdir("./Model/")
     await home(q)
 
-    """ Clear the expired cards """
+    # Clear the expired cards
     q.page["meta"].dialog = None
     q.page["meta"].notification_bar = None
 
-    """ Event Handling"""
+    # Event Handling
     if q.args.predict and q.args.aml_model:
         await predict_button_click(q)
 
-    """ Handle file upload and data visualization """
+    # Handle file upload and data visualization
     if q.args.submit and q.args.file_upload:
         local_path = await upload_data(q)
         q.client.local_path = local_path
         handle_table(q, local_path)
 
-    """ Train the model and save it in the Model directory"""
+    # Train the model and save it in the Model directory
     if q.args.train_model and q.client.local_path:
         await train_model(q, q.client.local_path)
 
@@ -156,7 +156,7 @@ async def init(q: Q) -> None:
 
 @on()
 async def home(q: Q) -> None:
-    """File Upload Field"""
+    # File Upload Field
     if "file_upload" in q.args:
         add_card(
             q,
@@ -207,7 +207,7 @@ async def home(q: Q) -> None:
             ),
         )
 
-    """ Form Fields """
+    # Form Fields
     add_card(
         q,
         "make",
@@ -305,7 +305,7 @@ async def home(q: Q) -> None:
         ),
     )
 
-    """ Model Selector"""
+    # Model Selector
     add_card(
         q,
         "model_selector",
@@ -339,7 +339,7 @@ async def home(q: Q) -> None:
         ),
     )
 
-    """ Prediction Card """
+    # Prediction Card
     add_card(
         q,
         "predicted_price_card",
