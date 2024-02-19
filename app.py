@@ -188,7 +188,7 @@ async def home(q: Q) -> None:
                     ui.file_upload(
                         required=True,
                         name="file_upload",
-                        label="Select one or more files to upload",
+                        label="Select a dataset file (CSV)",
                         compact=True,
                         multiple=False,
                         file_extensions=["csv"],
@@ -260,6 +260,7 @@ async def home(q: Q) -> None:
                 ui.textbox(
                     required=True,
                     name="year",
+                    mask="[0-9]{4}",
                     label="Enter Build Year",
                     value=q.args.year,
                     placeholder="Year",
