@@ -217,8 +217,8 @@ async def home(q: Q) -> None:
                 ui.dropdown(
                     required=True,
                     name="make",
-                    placeholder="Select Make",
-                    label="Make",
+                    placeholder="Select Company",
+                    label="Company",
                     value=q.args.make,
                     choices=[
                         ui.choice(name=x, label=x)
@@ -316,7 +316,7 @@ async def home(q: Q) -> None:
                     required=True,
                     name="aml_model",
                     placeholder="Select Model",
-                    label="Model",
+                    label="AutoML Model",
                     value=q.args.aml_model,
                     choices=[ui.choice(name=x, label=x) for x in q.client.aml_models],
                 )
