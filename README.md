@@ -1,41 +1,49 @@
-# Getting Started with H2O Wave
+# Car Price Predictor using H2O Wave
 
-This project was bootstrapped with `wave init` command.
+This car price prediction system, built with H2O Wave, H2O AutoML, utilizes features like year,
+mileage, make, model, and condition to estimate vehicle prices.
+
+
+https://github.com/z1nc0r3/Car-Price-Predictor-using-H2O-wave/assets/64279853/ac572d90-f011-491c-8d19-9e60a89f64af
+
+
 
 ## Running the app
 
-Make sure you have activated a Python virtual environment with `h2o-wave` installed.
+### 1. Clone the repository:
 
-If you haven't created a python env yet, simply run the following command (assuming Python 3.7 is installed properly).
+``` bash
+git clone https://github.com/z1nc0r3/Car-Price-Predictor-using-H2O-wave
+```
 
-For MacOS / Linux:
+### 2. Create a virtual environment:
 
-```sh
+``` bash
 python3 -m venv venv
+```
+
+### 3. Activate the virtual environment:
+``` bash
 source venv/bin/activate
-pip install h2o-wave
 ```
 
-For Windows:
+**windows**
+``` bash
+venv\Scripts\activate.bat
+```
+To deactivate the virtual environment use ```deactivate``` command.
 
-```sh
-python3 -m venv venv
-venv\Scripts\activate
-pip install h2o-wave
+### 4. Install dependencies:
+
+``` bash
+(venv) pip3 install -r requirements.txt 
 ```
 
-Once the virtual environment is setup and active, run:
-
-```sh
-wave run app.py
+### 5. Run the app:
+``` bash
+(venv) wave run app
 ```
 
-Which will start a Wave app at <http://localhost:10101>.
+### 6. View the app:
+Point your favorite web browser to http://localhost:10101/predictor
 
-## Interactive examples
-
-If you prefer learning by doing, you can run `wave fetch` command that will download all the existing small Python examples that show Wave in action. The best part is that all these examples are interactive, meaning you can edit their code directly within the browser and observe the changes.
-
-## Learn More
-
-To learn more about H2O Wave, check out the [docs](https://wave.h2o.ai/).
