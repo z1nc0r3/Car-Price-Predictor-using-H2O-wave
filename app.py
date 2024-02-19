@@ -6,7 +6,7 @@ import os
 from Train.train import Trainer
 from Train.predictor import Predictor
 
-# h2o.init()
+h2o.init()
 
 
 @app("/predictor")
