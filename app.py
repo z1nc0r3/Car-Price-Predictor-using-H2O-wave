@@ -1,12 +1,11 @@
 from h2o_wave import main, app, Q, ui, on, run_on
-import h2o
 from h2o.automl import H2OAutoML
-import time, numpy as np
 from collections import defaultdict
+import h2o
+import numpy as np
 import pandas as pd
-import asyncio
 import concurrent.futures
-from threading import Event
+import asyncio
 import os
 
 h2o.init()
@@ -18,11 +17,12 @@ async def serve(q: Q):
         await init(q)
         q.client.initialized = True
 
-    q.client.models = os.listdir("./Model")
+    q.client.aml_models = os.listdir("./Model/")
     await home(q)
-    q.page["meta"].dialog = None
+    q.page['meta'].dialog = None
+    q.page['meta'].notification_bar = None
 
-    if q.args.predict and q.args.model:
+    if q.args.predict and q.args.aml_model:
         await predict_button_click(q)
 
     if q.args.submit and q.args.file_upload:
@@ -305,11 +305,11 @@ async def home(q: Q) -> None:
             items=[
                 ui.dropdown(
                     required=True,
-                    name="model",
+                    name="aml_model",
                     placeholder="Select Model",
                     label="Model",
-                    value=q.args.model,
-                    choices=[ui.choice(name=x, label=x) for x in q.client.models],
+                    value=q.args.aml_model,
+                    choices=[ui.choice(name=x, label=x) for x in q.client.aml_models],
                 )
             ],
         ),
@@ -420,6 +420,7 @@ def handle_table(q, local_path):
 async def predict_button_click(q: Q):
     q.args.predict = False
     q.page["meta"].dialog = None
+    q.page["meta"].notification_bar = None
 
     try:
         make = q.args.make
@@ -427,8 +428,9 @@ async def predict_button_click(q: Q):
         year = int(q.args.year)
         mileage = int(q.args.mileage)
         condition = q.args.condition
-
-        await update_predicted_price(q, make, model, year, mileage, condition)
+        aml_model = q.args.aml_model
+        
+        await update_predicted_price(q, make, model, year, mileage, condition, aml_model)
 
     except Exception as e:
         q.page["meta"].dialog = ui.dialog(
@@ -444,9 +446,9 @@ async def predict_button_click(q: Q):
 
 
 async def update_predicted_price(
-    q: Q, make: str, model: str, year: int, mileage: int, condition: str
+    q: Q, make: str, model: str, year: int, mileage: int, condition: str, aml_model: str
 ):
-    predicted_price = await predict_price(q, make, model, year, mileage, condition)
+    predicted_price = await predict_price(q, make, model, year, mileage, condition, aml_model)
 
     add_card(
         q,
@@ -465,9 +467,9 @@ async def update_predicted_price(
 
 
 async def predict_price(
-    q, make: str, model: str, year: int, mileage: int, condition: str
+    q, make: str, model: str, year: int, mileage: int, condition: str, aml_model: str
 ) -> float:
-    model = h2o.import_mojo(f"./Model/{q.args.model}")
+    model = h2o.import_mojo(f"./Model/{aml_model}")
     column_names = [
         "Year",
         "Mileage",
@@ -520,6 +522,12 @@ async def predict_price(
 async def train_model(q: Q, local_path: str):
     try:
         df = h2o.import_file(local_path)
+
+        train, test = df.split_frame(ratios=[0.7])
+
+        y = "Price"
+        x = df.columns
+        x.remove(y)
     except Exception as e:
         q.page["meta"].dialog = ui.dialog(
             title="Error!",
@@ -532,20 +540,13 @@ async def train_model(q: Q, local_path: str):
 
         return
 
-    train, test = df.split_frame(ratios=[0.7])
-
-    y = "Price"
-    x = df.columns
-    x.remove(y)
-
     aml = H2OAutoML(max_models=10, seed=10, verbosity="info", nfolds=8)
 
     future = asyncio.ensure_future(show_timer(q))
     with concurrent.futures.ThreadPoolExecutor() as pool:
         await q.exec(pool, aml_train, aml, x, y, train)
     future.cancel()
-    q.page["meta"].dialog = None
-    q.client.models = os.listdir("./Model")
+    post_training(q)
 
     best_model = aml.leader
 
@@ -553,12 +554,61 @@ async def train_model(q: Q, local_path: str):
 
     path = "./Model/"
     best_model.save_mojo(path)
+    q.client.aml_models = os.listdir(path)
+
+    add_card(
+        q,
+        "model_selector",
+        ui.form_card(
+            box="model_selector",
+            items=[
+                ui.dropdown(
+                    required=True,
+                    name="aml_model",
+                    placeholder="Select Model",
+                    label="Model",
+                    value=q.args.aml_model,
+                    choices=[ui.choice(name=x, label=x) for x in q.client.aml_models],
+                )
+            ],
+        ),
+    )
+
+    await q.page.save()
 
     return predictions
 
 
 def aml_train(aml, x, y, train):
     aml.train(x=x, y=y, training_frame=train)
+
+
+def post_training(q):
+    q.page["meta"].dialog = None
+    q.page["meta"] = ui.meta_card(
+        box="",
+        notification_bar=ui.notification_bar(
+            text="Model trained successfully!",
+            type="success",
+            position="top-right",
+            name="notification_bar"
+        ),
+    )
+
+
+async def show_timer(q: Q):
+    for i in range(1, 40):
+        q.page["meta"].dialog = ui.dialog(
+            title="Training Model",
+            items=[
+                ui.text(f"Training model... {i}%"),
+            ],
+            closable=False,
+            blocking=True,
+        )
+
+        await q.page.save()
+        await q.sleep(1)
 
 
 def add_card(q, name, card) -> None:
@@ -573,19 +623,7 @@ def clear_cards(q, ignore=[]) -> None:
             q.client.cards.remove(name)
 
 
-async def show_timer(q: Q):
-    for i in range(1, 100):
-        q.page["meta"].dialog = ui.dialog(
-            title="Training Model",
-            items=[
-                ui.text(f"Training model... {i}%"),
-            ],
-            closable=False,
-            blocking=True,
-        )
-
-        await q.page.save()
-        await q.sleep(1)
+""" Header and Footer """
 
 
 def header(q: Q):
