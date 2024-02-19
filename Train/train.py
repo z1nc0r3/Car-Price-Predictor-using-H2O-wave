@@ -1,4 +1,4 @@
-from h2o_wave import  Q, ui
+from h2o_wave import Q, ui
 from h2o.automl import H2OAutoML
 import h2o
 import concurrent.futures
