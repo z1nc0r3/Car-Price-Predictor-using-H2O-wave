@@ -260,7 +260,7 @@ async def home(q: Q) -> None:
                 ui.textbox(
                     required=True,
                     name="year",
-                    mask="[0-9]{4}",
+                    mask="9999",
                     label="Enter Build Year",
                     value=q.args.year,
                     placeholder="Year",
