@@ -78,7 +78,7 @@ class Predictor:
         condition: str,
         aml_model: str,
     ) -> float:
-        model = h2o.import_mojo(f"./Model/{aml_model}")
+        model = h2o.load_model(f"./Model/{aml_model}")
         column_names = [
             "Year",
             "Mileage",

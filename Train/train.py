@@ -15,7 +15,7 @@ class Trainer:
             df = h2o.import_file(local_path)
 
             # Split the dataset into training and testing sets
-            train, test = df.split_frame(ratios=[0.7])
+            train, test = df.split_frame(ratios=[0.7], seed=10)
 
             y = "Price"
             x = df.columns
@@ -48,7 +48,8 @@ class Trainer:
         predictions = best_model.predict(test)
 
         path = "./Model/"
-        best_model.save_mojo(path)
+        h2o.save_model(model=best_model, path=path, force=True)
+        # best_model.save_mojo(path)
         q.client.aml_models = os.listdir(path)
 
         self.add_card(
