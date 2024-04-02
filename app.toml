@@ -8,4 +8,5 @@ Tags = ["MACHINE_LEARNING"]
 InstanceLifecycle = "ON_DEMAND" 
 
 [Runtime]
-Module = "app.run"
+Module = "app"
+RuntimeVersion="deb11_py38_wlatest"
