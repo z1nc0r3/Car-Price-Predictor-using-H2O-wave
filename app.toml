@@ -1,0 +1,11 @@
+[App]
+Name = "ai.h2o.wave.car-price-predictor"
+Version = "0.0.1"
+Title = "Car Price Predictor"
+Description = "A simple wave app to predict car prices"
+LongDescription = "README.md"
+Tags = ["MACHINE_LEARNING"]
+InstanceLifecycle = "ON_DEMAND" 
+
+[Runtime]
+Module = "app.run"
