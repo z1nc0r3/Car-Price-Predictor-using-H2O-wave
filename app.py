@@ -9,7 +9,7 @@ from Train.predictor import Predictor
 h2o.init()
 
 
-@app("/predictor")
+@app("/")
 async def serve(q: Q):
     if not q.client.initialized:
         await init(q)
