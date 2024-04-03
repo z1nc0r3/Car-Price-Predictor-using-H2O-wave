@@ -9,4 +9,3 @@ InstanceLifecycle = "ON_DEMAND"
 
 [Runtime]
 Module = "app"
-RuntimeVersion="deb11_py38_wlatest"

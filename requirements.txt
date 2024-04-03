@@ -2,3 +2,5 @@ h2o-wave
 h2o
 pandas
 numpy
+h2o-authn~=1.0
+h2o-engine-manager
